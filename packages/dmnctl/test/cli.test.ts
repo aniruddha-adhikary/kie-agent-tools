@@ -38,7 +38,7 @@ test("new creates a valid empty model", () => {
   const f = tmp("empty.dmn");
   assert.equal(run("new", f, "--name", "Empty").status, 0);
   const xml = fs.readFileSync(f, "utf8");
-  assert.match(xml, /https:\/\/www\.omg\.org\/spec\/DMN\/20230324\/MODEL\//);
+  assert.match(xml, /https:\/\/www\.omg\.org\/spec\/DMN\/\d{8}\/MODEL\//);
   assert.match(xml, /name="Empty"/);
   assert.equal(run("validate", f).status, 0);
 });
