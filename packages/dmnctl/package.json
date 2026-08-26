@@ -1,0 +1,29 @@
+{
+  "name": "@kie-agent-tools/dmnctl",
+  "version": "0.1.0",
+  "description": "CLI for semantic DMN editing with automatic diagram layout, FEEL linting, validation and evaluation (Apache KIE / Kogito)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "dmnctl": "bin/dmnctl.js" },
+  "files": ["bin", "dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && esbuild src/cli.ts --bundle --platform=node --format=cjs --external:jsdom --outfile=dist/cli.cjs --log-level=warning --define:import.meta.url=importMetaUrl \"--banner:js=const importMetaUrl = require('node:url').pathToFileURL(__filename).href;\"",
+    "pretest": "npm run build",
+    "test": "tsx --test test/cli.test.ts"
+  },
+  "dependencies": {
+    "@kie-tools/dmn-marshaller": "^10.2.0",
+    "@kie-tools/dmn-feel-antlr4-parser": "^10.2.0",
+    "antlr4": "^4.13.1",
+    "commander": "^12.1.0",
+    "elkjs": "^0.9.3",
+    "jsdom": "^24.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.23.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

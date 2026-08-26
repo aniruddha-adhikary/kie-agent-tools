@@ -1,25 +1,14 @@
 {
-  "name": "@aniruddha-adhikary/bpnm-cli",
+  "name": "kie-agent-tools",
+  "private": true,
   "version": "0.1.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "node --test test/"
-  },
-  "keywords": [],
-  "author": "",
+  "description": "Agent-oriented CLI tools for the Apache KIE / Kogito ecosystem (BPMN, DMN, SCESIM, DRL)",
   "license": "Apache-2.0",
-  "description": "CLI for AI coding agents to semantically edit BPMN 2.0 files (Kogito/jBPM/KIE) with automatic diagram layout",
-  "type": "module",
-  "bin": {
-    "bpmnctl": "./bin/bpmnctl.js"
-  },
-  "dependencies": {
-    "bpmn-auto-layout": "^1.3.0",
-    "bpmn-moddle": "^10.2.0",
-    "bpmnlint": "^10.3.1",
-    "commander": "^14.0.3"
-  },
-  "engines": {
-    "node": ">=18"
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
   }
 }

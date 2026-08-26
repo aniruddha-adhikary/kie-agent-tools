@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20230324/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/" xmlns:kie="https://kie.org/dmn/extensions/1.0" expressionLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/" typeLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/" namespace="https://kie.org/dmn/_LOANFIXTURE" id="_LOAN_DEFS" name="Loan Approval">
+  <itemDefinition id="_ITEM_APPLICANT" name="tApplicant" isCollection="false">
+    <itemComponent id="_ITEM_APPLICANT_AGE" name="Age" isCollection="false">
+      <typeRef>number</typeRef>
+    </itemComponent>
+    <itemComponent id="_ITEM_APPLICANT_INCOME" name="Monthly Income" isCollection="false">
+      <typeRef>number</typeRef>
+    </itemComponent>
+  </itemDefinition>
+  <inputData id="_INPUT_APPLICANT" name="Applicant">
+    <variable id="_VAR_APPLICANT" name="Applicant" typeRef="tApplicant" />
+  </inputData>
+  <inputData id="_INPUT_SCORE" name="Credit Score">
+    <variable id="_VAR_SCORE" name="Credit Score" typeRef="number" />
+  </inputData>
+  <decision id="_DECISION_APPROVAL" name="Approval">
+    <variable id="_VAR_APPROVAL" name="Approval" typeRef="boolean" />
+    <informationRequirement id="_IR_1">
+      <requiredInput href="#_INPUT_APPLICANT" />
+    </informationRequirement>
+    <informationRequirement id="_IR_2">
+      <requiredInput href="#_INPUT_SCORE" />
+    </informationRequirement>
+    <decisionTable id="_DT_APPROVAL" hitPolicy="FIRST" label="Approval">
+      <input id="_DT_IN_1">
+        <inputExpression id="_DT_IN_1_EXPR" typeRef="number">
+          <text>Credit Score</text>
+        </inputExpression>
+      </input>
+      <input id="_DT_IN_2">
+        <inputExpression id="_DT_IN_2_EXPR" typeRef="number">
+          <text>Applicant.Age</text>
+        </inputExpression>
+      </input>
+      <output id="_DT_OUT_1" name="Approval" typeRef="boolean" />
+      <rule id="_DT_RULE_1">
+        <inputEntry id="_DT_RULE_1_IN_1">
+          <text>&gt;= 700</text>
+        </inputEntry>
+        <inputEntry id="_DT_RULE_1_IN_2">
+          <text>&gt;= 18</text>
+        </inputEntry>
+        <outputEntry id="_DT_RULE_1_OUT_1">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+      <rule id="_DT_RULE_2">
+        <inputEntry id="_DT_RULE_2_IN_1">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="_DT_RULE_2_IN_2">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="_DT_RULE_2_OUT_1">
+          <text>false</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="_DIAGRAM_1">
+      <dmndi:DMNShape id="_SHAPE_APPLICANT" dmnElementRef="_INPUT_APPLICANT">
+        <dc:Bounds x="80" y="240" width="160" height="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="_SHAPE_SCORE" dmnElementRef="_INPUT_SCORE">
+        <dc:Bounds x="300" y="240" width="160" height="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="_SHAPE_APPROVAL" dmnElementRef="_DECISION_APPROVAL">
+        <dc:Bounds x="190" y="80" width="160" height="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="_EDGE_1" dmnElementRef="_IR_1">
+        <di:waypoint x="160" y="240" />
+        <di:waypoint x="270" y="160" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="_EDGE_2" dmnElementRef="_IR_2">
+        <di:waypoint x="380" y="240" />
+        <di:waypoint x="270" y="160" />
+      </dmndi:DMNEdge>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
