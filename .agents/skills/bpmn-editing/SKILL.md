@@ -20,7 +20,7 @@ From the repo root:
 
 ```sh
 npm install
-node bin/bpmnctl.js --help     # or: npm link && bpmnctl --help
+node packages/bpmnctl/bin/bpmnctl.js --help     # or: npm link && bpmnctl --help
 ```
 
 Requires Node.js >= 18.
