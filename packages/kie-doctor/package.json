@@ -1,0 +1,28 @@
+{
+  "name": "@kie-agent-tools/kie-doctor",
+  "version": "0.1.0",
+  "description": "Cross-asset broken-reference lint for Apache KIE / Kogito projects (BPMN, DMN, DRL, scesim)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "kie-doctor": "bin/kie-doctor.js" },
+  "files": ["bin", "dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && esbuild src/cli.ts --bundle --platform=node --format=cjs --external:jsdom --outfile=dist/cli.cjs --log-level=warning",
+    "pretest": "npm run build",
+    "test": "tsx --test test/cli.test.ts"
+  },
+  "dependencies": {
+    "@kie-tools/bpmn-marshaller": "^10.2.0",
+    "@kie-tools/dmn-marshaller": "^10.2.0",
+    "@kie-tools/scesim-marshaller": "^10.2.0",
+    "commander": "^12.1.0",
+    "jsdom": "^24.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.23.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

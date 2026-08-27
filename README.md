@@ -11,7 +11,7 @@ Agent-oriented CLI tools for the Apache KIE / Kogito / Drools ecosystem. AI codi
 | [`packages/scesimctl`](packages/scesimctl) | ready | Semantic editing and validation of `.scesim` test scenarios, with columns derived from the DMN model |
 | [`packages/kogito-trace`](packages/kogito-trace) | ready | Process-instance execution traces (timeline, errors, user tasks, variables) via the Data Index GraphQL API |
 | [`packages/drlcheck`](packages/drlcheck) | ready | Fast DRL compile-checks and rule-firing dry runs via a cached headless Drools runner (needs Java + Maven) |
-| `kie-doctor` | planned | Cross-asset broken-reference lint (BPMN ↔ DMN ↔ DRL ↔ scesim) |
+| [`packages/kie-doctor`](packages/kie-doctor) | ready | Cross-asset broken-reference lint (BPMN ↔ DMN ↔ DRL ↔ scesim) |
 
 ## Agent skills
 
@@ -22,6 +22,7 @@ Reusable skills for coding agents live in [`.agents/skills/`](.agents/skills):
 - [`scesim-editing`](.agents/skills/scesim-editing/SKILL.md) — edit `.scesim` test scenarios with `scesimctl`, never raw XML
 - [`kogito-trace`](.agents/skills/kogito-trace/SKILL.md) — debug process instances via the Data Index instead of grepping logs
 - [`drl-authoring`](.agents/skills/drl-authoring/SKILL.md) — compile-check and dry-run `.drl` rules with `drlcheck` before any full build
+- [`kie-doctor`](.agents/skills/kie-doctor/SKILL.md) — lint cross-asset references after renaming/moving assets or editing links between them
 
 ## Development
 

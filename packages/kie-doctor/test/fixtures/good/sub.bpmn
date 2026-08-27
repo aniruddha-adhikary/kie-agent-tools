@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn2:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:drools="http://www.jboss.org/drools"
+                   id="_defsSub"
+                   targetNamespace="http://www.omg.org/bpmn20">
+  <bpmn2:process id="sub-process" name="sub-process" drools:packageName="com.example" isExecutable="true" processType="Public">
+    <bpmn2:startEvent id="s" name="Start">
+      <bpmn2:outgoing>sf1</bpmn2:outgoing>
+    </bpmn2:startEvent>
+    <bpmn2:endEvent id="e" name="End">
+      <bpmn2:incoming>sf1</bpmn2:incoming>
+    </bpmn2:endEvent>
+    <bpmn2:sequenceFlow id="sf1" sourceRef="s" targetRef="e"/>
+  </bpmn2:process>
+</bpmn2:definitions>
