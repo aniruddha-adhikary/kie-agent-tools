@@ -1,23 +1,28 @@
 {
   "name": "@kie-agent-tools/bpmnctl",
   "version": "0.1.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "node --test test/"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "Apache-2.0",
   "description": "CLI for AI coding agents to semantically edit BPMN 2.0 files (Kogito/jBPM/KIE) with automatic diagram layout",
+  "license": "Apache-2.0",
   "type": "module",
-  "bin": {
-    "bpmnctl": "./bin/bpmnctl.js"
+  "bin": { "bpmnctl": "bin/bpmnctl.js" },
+  "files": ["bin", "dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && esbuild src/cli.ts --bundle --platform=node --format=cjs --outfile=dist/cli.cjs --log-level=warning --define:import.meta.url=importMetaUrl \"--banner:js=const importMetaUrl = require('node:url').pathToFileURL(__filename).href;\"",
+    "pretest": "npm run build",
+    "test": "tsx --test test/cli.test.ts"
   },
   "dependencies": {
     "bpmn-auto-layout": "^1.3.0",
     "bpmn-moddle": "^10.2.0",
     "bpmnlint": "^10.3.1",
     "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.23.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
   },
   "engines": {
     "node": ">=18"

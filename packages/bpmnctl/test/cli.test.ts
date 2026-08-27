@@ -5,16 +5,27 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import type { ProcessDescription } from '../src/describe.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(__dirname, '..', 'bin', 'bpmnctl.js');
 const FIXTURE = path.join(__dirname, 'fixtures', 'kogito-sample.bpmn');
 
-function run(args, opts = {}) {
+interface ExecError extends Error {
+  status?: number;
+  stdout?: string;
+  stderr?: string;
+}
+
+function run(args: string[], opts: Record<string, unknown> = {}): string {
   return execFileSync('node', [BIN, ...args], { encoding: 'utf8', ...opts });
 }
 
-function tmpFile(name) {
+function describeFile(file: string): ProcessDescription {
+  return JSON.parse(run(['describe', file, '--json'])) as ProcessDescription;
+}
+
+function tmpFile(name: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bpmnctl-'));
   return path.join(dir, name);
 }
@@ -22,8 +33,7 @@ function tmpFile(name) {
 test('new + describe', () => {
   const file = tmpFile('p.bpmn');
   run(['new', file, '--id', 'proc1', '--name', 'Proc One', '--package', 'org.acme']);
-  const out = run(['describe', file, '--json']);
-  const desc = JSON.parse(out);
+  const desc = describeFile(file);
   assert.equal(desc.process.id, 'proc1');
   assert.equal(desc.process.attrs['drools:packageName'], 'org.acme');
   assert.equal(desc.nodes.length, 2);
@@ -37,14 +47,15 @@ test('add --between splices into an existing flow', () => {
   const file = tmpFile('p.bpmn');
   run(['new', file, '--id', 'proc1']);
   run(['add', file, '--type', 'userTask', '--name', 'Review', '--between', 'start,end']);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   assert.deepEqual(
     desc.flows.map((f) => `${f.source}->${f.target}`).sort(),
     ['Review->end', 'start->Review']
   );
   const review = desc.nodes.find((n) => n.id === 'Review');
+  assert.ok(review);
   assert.equal(review.type, 'UserTask');
-  assert.equal(review.meta.elementname, 'Review');
+  assert.equal(review.meta?.elementname, 'Review');
 });
 
 test('connect with condition and default', () => {
@@ -55,9 +66,11 @@ test('connect with condition and default', () => {
   run(['rm', file, 'flow_Gate_end']);
   run(['connect', file, 'Gate', 'end', '--condition', 'return ok;', '--language', 'http://www.java.com/java']);
   run(['connect', file, 'Gate', 'end2', '--default']);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   const yes = desc.flows.find((f) => f.target === 'end');
   const no = desc.flows.find((f) => f.target === 'end2');
+  assert.ok(yes);
+  assert.ok(no);
   assert.equal(yes.condition, 'return ok;');
   assert.equal(no.default, true);
 });
@@ -67,7 +80,7 @@ test('rm --reconnect bridges neighbors', () => {
   run(['new', file, '--id', 'proc1']);
   run(['add', file, '--type', 'scriptTask', '--id', 'st', '--name', 'S', '--between', 'start,end']);
   run(['rm', file, 'st', '--reconnect']);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   assert.equal(desc.nodes.length, 2);
   assert.deepEqual(desc.flows.map((f) => `${f.source}->${f.target}`), ['start->end']);
 });
@@ -103,7 +116,7 @@ test('edits on the Kogito fixture keep extensions intact', () => {
   const xml = fs.readFileSync(file, 'utf8');
   assert.match(xml, /drools:ruleFlowGroup="validation"/);
   assert.match(xml, /drools:packageName="com.example"/);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   assert.deepEqual(
     desc.flows.map((f) => `${f.source}->${f.target}`).sort(),
     ['reviewTask->rules', 'rules->end', 'start->reviewTask']
@@ -117,9 +130,10 @@ test('validate flags implicit split and exits 1', () => {
   run(['connect', file, 'start', 'end2']);
   assert.throws(
     () => run(['validate', file]),
-    (err) => {
-      assert.equal(err.status, 1);
-      assert.match(err.stdout, /no-implicit-split/);
+    (err: unknown) => {
+      const e = err as ExecError;
+      assert.equal(e.status, 1);
+      assert.match(e.stdout ?? '', /no-implicit-split/);
       return true;
     }
   );
@@ -159,7 +173,7 @@ test('apply runs a batch of ops', () => {
   const opsFile = tmpFile('ops.json');
   fs.writeFileSync(opsFile, JSON.stringify(ops));
   run(['apply', file, opsFile]);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   assert.equal(desc.nodes.length, 5);
   assert.equal(desc.flows.length, 4);
   const xml = fs.readFileSync(file, 'utf8');
@@ -170,8 +184,9 @@ test('event definitions', () => {
   const file = tmpFile('p.bpmn');
   run(['new', file, '--id', 'proc1']);
   run(['add', file, '--type', 'intermediateCatchEvent', '--id', 'wait', '--name', 'Wait', '--between', 'start,end', '--event-def', 'timer']);
-  const desc = JSON.parse(run(['describe', file, '--json']));
+  const desc = describeFile(file);
   const wait = desc.nodes.find((n) => n.id === 'wait');
+  assert.ok(wait);
   assert.deepEqual(wait.eventDefinitions, ['TimerEventDefinition']);
 });
 
@@ -180,9 +195,10 @@ test('errors are actionable: unknown id lists known ids', () => {
   run(['new', file, '--id', 'proc1']);
   assert.throws(
     () => run(['connect', file, 'nope', 'end'], { stdio: 'pipe' }),
-    (err) => {
-      assert.match(String(err.stderr), /not found/);
-      assert.match(String(err.stderr), /known ids/);
+    (err: unknown) => {
+      const e = err as ExecError;
+      assert.match(String(e.stderr), /not found/);
+      assert.match(String(e.stderr), /known ids/);
       return true;
     }
   );

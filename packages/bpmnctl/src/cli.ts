@@ -3,10 +3,9 @@ import { Command, Option } from 'commander';
 import { layoutProcess } from 'bpmn-auto-layout';
 import {
   loadModel,
-  saveModel,
-  serializeModel,
   getProcess,
   findElement,
+  serializeModel,
 } from './model.js';
 import {
   addNode,
@@ -21,8 +20,14 @@ import { describeProcess, describeText } from './describe.js';
 import { lint, structuralChecks } from './validate.js';
 import { renderSvg } from './render.js';
 import { scaffoldXml } from './scaffold.js';
+import type {
+  BpmnDefinitions,
+  BpmnModdleApi,
+  FormalExpression,
+  Issue,
+} from './types.js';
 
-function collectKeyValue(value, previous) {
+function collectKeyValue(value: string, previous: Record<string, string>): Record<string, string> {
   const idx = value.indexOf('=');
   if (idx < 0) {
     throw new Error(`expected key=value, got: ${value}`);
@@ -30,25 +35,53 @@ function collectKeyValue(value, previous) {
   return { ...previous, [value.slice(0, idx)]: value.slice(idx + 1) };
 }
 
-async function writeBack(file, moddle, definitions, { layout = true } = {}) {
+async function writeBack(
+  file: string,
+  moddle: BpmnModdleApi,
+  definitions: BpmnDefinitions,
+  { layout = true }: { layout?: boolean } = {}
+): Promise<void> {
   let xml = await serializeModel(moddle, definitions);
   if (layout) {
     try {
       xml = await layoutProcess(xml);
     } catch (err) {
-      console.error(`warning: auto-layout failed (${err.message}); saved without DI update`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`warning: auto-layout failed (${message}); saved without DI update`);
     }
   }
   fs.writeFileSync(file, xml);
 }
 
-async function relayout(file) {
+async function relayout(file: string): Promise<void> {
   const xml = fs.readFileSync(file, 'utf8');
   const laid = await layoutProcess(xml);
   fs.writeFileSync(file, laid);
 }
 
-export function buildProgram() {
+interface ApplyOp {
+  op: string;
+  type?: string;
+  id?: string;
+  name?: string;
+  after?: string;
+  before?: string;
+  between?: string[];
+  container?: string;
+  eventDefinition?: string;
+  script?: string;
+  scriptFormat?: string;
+  source?: string;
+  target?: string;
+  condition?: string;
+  language?: string;
+  default?: boolean;
+  reconnect?: boolean;
+  attrs?: Record<string, string>;
+  meta?: Record<string, string>;
+}
+
+export function buildProgram(): Command {
   const program = new Command();
 
   program
@@ -68,7 +101,7 @@ export function buildProgram() {
     .option('--name <name>', 'process name (defaults to id)')
     .option('--package <package>', 'drools:packageName', 'com.example')
     .option('--force', 'overwrite existing file')
-    .action(async (file, opts) => {
+    .action(async (file: string, opts: { id: string; name?: string; package: string; force?: boolean }) => {
       if (fs.existsSync(file) && !opts.force) {
         throw new Error(`${file} already exists (use --force to overwrite)`);
       }
@@ -83,7 +116,7 @@ export function buildProgram() {
     .argument('<file>')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--json', 'output JSON instead of text')
-    .action(async (file, opts) => {
+    .action(async (file: string, opts: { process?: string; json?: boolean }) => {
       const { definitions } = await loadModel(file);
       const process = getProcess(definitions, opts.process);
       const desc = describeProcess(definitions, process);
@@ -105,7 +138,7 @@ export function buildProgram() {
     .option(
       '--between <src,dst>',
       'splice the new node into the existing flow between two nodes',
-      (v) => v.split(',').map((s) => s.trim())
+      (v: string) => v.split(',').map((s) => s.trim())
     )
     .option('--container <subProcessId>', 'add inside this subProcess')
     .addOption(
@@ -119,30 +152,50 @@ export function buildProgram() {
     .option('--meta <name=value>', 'set drools:metaData entry (repeatable)', collectKeyValue, {})
     .option('--process <id>', 'process id (if the file has several)')
     .option('--no-layout', 'skip DI regeneration')
-    .action(async (file, opts) => {
-      const { moddle, definitions } = await loadModel(file);
-      const process = getProcess(definitions, opts.process);
-      const { node, flows } = addNode(moddle, process, {
-        type: opts.type,
-        id: opts.id,
-        name: opts.name,
-        after: opts.after,
-        before: opts.before,
-        between: opts.between,
-        container: opts.container,
-        eventDefinition: opts.eventDef,
-        script: opts.script,
-        scriptFormat: opts.scriptFormat,
-        attrs: opts.attr,
-      });
-      for (const [k, v] of Object.entries(opts.meta)) {
-        setDroolsMeta(moddle, node, k, v);
+    .action(
+      async (
+        file: string,
+        opts: {
+          type: string;
+          id?: string;
+          name?: string;
+          after?: string;
+          before?: string;
+          between?: string[];
+          container?: string;
+          eventDef?: string;
+          script?: string;
+          scriptFormat?: string;
+          attr: Record<string, string>;
+          meta: Record<string, string>;
+          process?: string;
+          layout: boolean;
+        }
+      ) => {
+        const { moddle, definitions } = await loadModel(file);
+        const process = getProcess(definitions, opts.process);
+        const { node, flows } = addNode(moddle, process, {
+          type: opts.type,
+          id: opts.id,
+          name: opts.name,
+          after: opts.after,
+          before: opts.before,
+          between: opts.between,
+          container: opts.container,
+          eventDefinition: opts.eventDef,
+          script: opts.script,
+          scriptFormat: opts.scriptFormat,
+          attrs: opts.attr,
+        });
+        for (const [k, v] of Object.entries(opts.meta)) {
+          setDroolsMeta(moddle, node, k, v);
+        }
+        await writeBack(file, moddle, definitions, { layout: opts.layout });
+        console.log(
+          `added ${opts.type} <${node.id}>${flows.length ? `; flows: ${flows.map((f) => `${f.sourceRef?.id} -> ${f.targetRef?.id}`).join(', ')}` : ''}`
+        );
       }
-      await writeBack(file, moddle, definitions, { layout: opts.layout });
-      console.log(
-        `added ${opts.type} <${node.id}>${flows.length ? `; flows: ${flows.map((f) => `${f.sourceRef.id} -> ${f.targetRef.id}`).join(', ')}` : ''}`
-      );
-    });
+    );
 
   program
     .command('connect')
@@ -157,19 +210,34 @@ export function buildProgram() {
     .option('--default', 'mark as the default flow of the source gateway/activity')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--no-layout', 'skip DI regeneration')
-    .action(async (file, source, target, opts) => {
-      const { moddle, definitions } = await loadModel(file);
-      const process = getProcess(definitions, opts.process);
-      const flow = connect(moddle, process, source, target, {
-        id: opts.id,
-        name: opts.name,
-        condition: opts.condition,
-        language: opts.language,
-        default: opts.default,
-      });
-      await writeBack(file, moddle, definitions, { layout: opts.layout });
-      console.log(`connected ${source} -> ${target} as <${flow.id}>`);
-    });
+    .action(
+      async (
+        file: string,
+        source: string,
+        target: string,
+        opts: {
+          id?: string;
+          name?: string;
+          condition?: string;
+          language?: string;
+          default?: boolean;
+          process?: string;
+          layout: boolean;
+        }
+      ) => {
+        const { moddle, definitions } = await loadModel(file);
+        const process = getProcess(definitions, opts.process);
+        const flow = connect(moddle, process, source, target, {
+          id: opts.id,
+          name: opts.name,
+          condition: opts.condition,
+          language: opts.language,
+          default: opts.default,
+        });
+        await writeBack(file, moddle, definitions, { layout: opts.layout });
+        console.log(`connected ${source} -> ${target} as <${flow.id}>`);
+      }
+    );
 
   program
     .command('rm')
@@ -179,17 +247,23 @@ export function buildProgram() {
     .option('--reconnect', 'bridge predecessors to successors of the removed node')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--no-layout', 'skip DI regeneration')
-    .action(async (file, id, opts) => {
-      const { moddle, definitions } = await loadModel(file);
-      const process = getProcess(definitions, opts.process);
-      const { removed, flows } = removeElement(moddle, process, id, {
-        reconnect: opts.reconnect,
-      });
-      await writeBack(file, moddle, definitions, { layout: opts.layout });
-      console.log(
-        `removed ${removed.map((e) => `<${e.id}>`).join(', ')}${flows.length ? `; reconnected: ${flows.map((f) => `${f.sourceRef.id} -> ${f.targetRef.id}`).join(', ')}` : ''}`
-      );
-    });
+    .action(
+      async (
+        file: string,
+        id: string,
+        opts: { reconnect?: boolean; process?: string; layout: boolean }
+      ) => {
+        const { moddle, definitions } = await loadModel(file);
+        const process = getProcess(definitions, opts.process);
+        const { removed, flows } = removeElement(moddle, process, id, {
+          reconnect: opts.reconnect,
+        });
+        await writeBack(file, moddle, definitions, { layout: opts.layout });
+        console.log(
+          `removed ${removed.map((e) => `<${e.id}>`).join(', ')}${flows.length ? `; reconnected: ${flows.map((f) => `${f.sourceRef?.id} -> ${f.targetRef?.id}`).join(', ')}` : ''}`
+        );
+      }
+    );
 
   program
     .command('set')
@@ -205,43 +279,59 @@ export function buildProgram() {
     .option('--language <uri>', 'expression language URI for --condition')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--no-layout', 'skip DI regeneration')
-    .action(async (file, id, opts) => {
-      const { moddle, definitions } = await loadModel(file);
-      const process = getProcess(definitions, opts.process);
-      const element = process.id === id ? process : findElement(process, id);
-      if (opts.name !== undefined) {
-        element.name = opts.name;
-        if (element !== process) setDroolsMeta(moddle, element, 'elementname', opts.name);
-      }
-      setAttrs(element, opts.attr);
-      for (const [k, v] of Object.entries(opts.meta)) {
-        setDroolsMeta(moddle, element, k, v);
-      }
-      if (opts.script !== undefined) {
-        if (element.$type !== 'bpmn:ScriptTask') {
-          throw new Error(`--script requires a scriptTask, <${id}> is ${element.$type}`);
+    .action(
+      async (
+        file: string,
+        id: string,
+        opts: {
+          name?: string;
+          attr: Record<string, string>;
+          meta: Record<string, string>;
+          script?: string;
+          scriptFormat?: string;
+          condition?: string;
+          language?: string;
+          process?: string;
+          layout: boolean;
         }
-        element.script = opts.script;
-        element.scriptFormat = opts.scriptFormat || element.scriptFormat || 'http://www.java.com/java';
-      }
-      if (opts.condition !== undefined) {
-        if (element.$type !== 'bpmn:SequenceFlow') {
-          throw new Error(`--condition requires a sequenceFlow, <${id}> is ${element.$type}`);
+      ) => {
+        const { moddle, definitions } = await loadModel(file);
+        const process = getProcess(definitions, opts.process);
+        const element = process.id === id ? process : findElement(process, id);
+        if (opts.name !== undefined) {
+          element.name = opts.name;
+          if (element !== process) setDroolsMeta(moddle, element, 'elementname', opts.name);
         }
-        const expr = moddle.create('bpmn:FormalExpression', { body: opts.condition });
-        if (opts.language) expr.language = opts.language;
-        expr.$parent = element;
-        element.conditionExpression = expr;
+        setAttrs(element, opts.attr);
+        for (const [k, v] of Object.entries(opts.meta)) {
+          setDroolsMeta(moddle, element, k, v);
+        }
+        if (opts.script !== undefined) {
+          if (element.$type !== 'bpmn:ScriptTask') {
+            throw new Error(`--script requires a scriptTask, <${id}> is ${element.$type}`);
+          }
+          element.script = opts.script;
+          element.scriptFormat = opts.scriptFormat || element.scriptFormat || 'http://www.java.com/java';
+        }
+        if (opts.condition !== undefined) {
+          if (element.$type !== 'bpmn:SequenceFlow') {
+            throw new Error(`--condition requires a sequenceFlow, <${id}> is ${element.$type}`);
+          }
+          const expr = moddle.create('bpmn:FormalExpression', { body: opts.condition }) as FormalExpression;
+          if (opts.language) expr.language = opts.language;
+          expr.$parent = element;
+          element.set('conditionExpression', expr);
+        }
+        await writeBack(file, moddle, definitions, { layout: opts.layout });
+        console.log(`updated <${id}>`);
       }
-      await writeBack(file, moddle, definitions, { layout: opts.layout });
-      console.log(`updated <${id}>`);
-    });
+    );
 
   program
     .command('layout')
     .description('regenerate all diagram coordinates from the process structure (fixes DI after raw XML edits)')
     .argument('<file>')
-    .action(async (file) => {
+    .action(async (file: string) => {
       await relayout(file);
       console.log(`layout regenerated for ${file}`);
     });
@@ -252,10 +342,10 @@ export function buildProgram() {
     .argument('<file>')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--json', 'output JSON')
-    .action(async (file, opts) => {
+    .action(async (file: string, opts: { process?: string; json?: boolean }) => {
       const { definitions, warnings } = await loadModel(file);
       const process = getProcess(definitions, opts.process);
-      const issues = [
+      const issues: Issue[] = [
         ...structuralChecks(process, warnings),
         ...(await lint(definitions)),
       ];
@@ -278,7 +368,7 @@ export function buildProgram() {
     .description('render the diagram to SVG so the result can be checked visually')
     .argument('<file>')
     .option('-o, --output <file>', 'output SVG file (default: <file>.svg)')
-    .action(async (file, opts) => {
+    .action(async (file: string, opts: { output?: string }) => {
       const { definitions } = await loadModel(file);
       const svg = renderSvg(definitions);
       const out = opts.output || file.replace(/\.bpmn2?$/, '') + '.svg';
@@ -293,44 +383,62 @@ export function buildProgram() {
     .argument('<ops>', 'JSON file with {"ops": [...]}, or "-" for stdin')
     .option('--process <id>', 'process id (if the file has several)')
     .option('--no-layout', 'skip DI regeneration')
-    .action(async (file, opsFile, opts) => {
+    .action(async (file: string, opsFile: string, opts: { process?: string; layout: boolean }) => {
       const raw = opsFile === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(opsFile, 'utf8');
-      const parsed = JSON.parse(raw);
-      const ops = Array.isArray(parsed) ? parsed : parsed.ops;
+      const parsed: unknown = JSON.parse(raw);
+      const ops = Array.isArray(parsed)
+        ? (parsed as ApplyOp[])
+        : (parsed as { ops?: ApplyOp[] }).ops;
       if (!Array.isArray(ops)) {
         throw new Error('expected a JSON array or an object with an "ops" array');
       }
       const { moddle, definitions } = await loadModel(file);
       const process = getProcess(definitions, opts.process);
-      const log = [];
+      const log: string[] = [];
       for (const op of ops) {
         switch (op.op) {
           case 'add': {
-            const { node, flows } = addNode(moddle, process, op);
-            for (const [k, v] of Object.entries(op.meta || {})) {
+            if (!op.type) throw new Error('add op requires "type"');
+            const { node, flows } = addNode(moddle, process, {
+              type: op.type,
+              id: op.id,
+              name: op.name,
+              after: op.after,
+              before: op.before,
+              between: op.between,
+              container: op.container,
+              eventDefinition: op.eventDefinition,
+              script: op.script,
+              scriptFormat: op.scriptFormat,
+              attrs: op.attrs,
+            });
+            for (const [k, v] of Object.entries(op.meta ?? {})) {
               setDroolsMeta(moddle, node, k, v);
             }
             log.push(`add ${op.type} <${node.id}>${flows.length ? ` (${flows.length} flows)` : ''}`);
             break;
           }
           case 'connect': {
+            if (!op.source || !op.target) throw new Error('connect op requires "source" and "target"');
             const flow = connect(moddle, process, op.source, op.target, op);
             log.push(`connect ${op.source} -> ${op.target} <${flow.id}>`);
             break;
           }
           case 'rm': {
+            if (!op.id) throw new Error('rm op requires "id"');
             const { removed } = removeElement(moddle, process, op.id, op);
             log.push(`rm ${removed.map((e) => `<${e.id}>`).join(', ')}`);
             break;
           }
           case 'set': {
+            if (!op.id) throw new Error('set op requires "id"');
             const element = process.id === op.id ? process : findElement(process, op.id);
             if (op.name !== undefined) {
               element.name = op.name;
               if (element !== process) setDroolsMeta(moddle, element, 'elementname', op.name);
             }
-            setAttrs(element, op.attrs || {});
-            for (const [k, v] of Object.entries(op.meta || {})) {
+            setAttrs(element, op.attrs ?? {});
+            for (const [k, v] of Object.entries(op.meta ?? {})) {
               setDroolsMeta(moddle, element, k, v);
             }
             log.push(`set <${op.id}>`);
@@ -348,12 +456,15 @@ export function buildProgram() {
   return program;
 }
 
-export async function run(argv) {
+export async function run(argv: string[]): Promise<void> {
   const program = buildProgram();
   try {
     await program.parseAsync(argv);
   } catch (err) {
-    console.error(`error: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`error: ${message}`);
     globalThis.process.exitCode = 1;
   }
 }
+
+run(globalThis.process.argv);

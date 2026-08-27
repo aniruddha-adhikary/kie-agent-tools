@@ -1,6 +1,15 @@
 import { findElement, listFlowElements, containerOf } from './model.js';
+import type {
+  BpmnModdleApi,
+  BpmnProcess,
+  ExtensionElement,
+  ExtensionElements,
+  FlowElement,
+  FormalExpression,
+  SequenceFlow,
+} from './types.js';
 
-const NODE_TYPES = {
+const NODE_TYPES: Record<string, string> = {
   task: 'bpmn:Task',
   userTask: 'bpmn:UserTask',
   scriptTask: 'bpmn:ScriptTask',
@@ -22,7 +31,7 @@ const NODE_TYPES = {
   boundaryEvent: 'bpmn:BoundaryEvent',
 };
 
-const EVENT_DEFINITIONS = {
+const EVENT_DEFINITIONS: Record<string, string> = {
   timer: 'bpmn:TimerEventDefinition',
   message: 'bpmn:MessageEventDefinition',
   signal: 'bpmn:SignalEventDefinition',
@@ -33,21 +42,21 @@ const EVENT_DEFINITIONS = {
   terminate: 'bpmn:TerminateEventDefinition',
 };
 
-export function nodeTypeNames() {
+export function nodeTypeNames(): string[] {
   return Object.keys(NODE_TYPES);
 }
 
-export function eventDefinitionNames() {
+export function eventDefinitionNames(): string[] {
   return Object.keys(EVENT_DEFINITIONS);
 }
 
-function slugify(text) {
-  return (text || '')
+function slugify(text: string | undefined): string {
+  return (text ?? '')
     .replace(/[^a-zA-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
 
-export function generateId(process, prefix) {
+export function generateId(process: BpmnProcess, prefix: string | undefined): string {
   const base = slugify(prefix) || 'node';
   const taken = new Set(listFlowElements(process).map((e) => e.id));
   if (!taken.has(base)) return base;
@@ -56,23 +65,28 @@ export function generateId(process, prefix) {
   return `${base}_${i}`;
 }
 
-function ensureUniqueId(process, id) {
+function ensureUniqueId(process: BpmnProcess, id: string): string {
   if (findElement(process, id, { optional: true })) {
     throw new Error(`id <${id}> already exists in process <${process.id}>`);
   }
   return id;
 }
 
-export function setDroolsMeta(moddle, element, name, value) {
+export function setDroolsMeta(
+  moddle: BpmnModdleApi,
+  element: FlowElement,
+  name: string,
+  value: string
+): ExtensionElement {
   let ext = element.extensionElements;
   if (!ext) {
-    ext = moddle.create('bpmn:ExtensionElements', { values: [] });
+    ext = moddle.create('bpmn:ExtensionElements', { values: [] }) as ExtensionElements;
     ext.$parent = element;
     element.extensionElements = ext;
   }
-  ext.values = ext.values || [];
+  ext.values = ext.values ?? [];
   const existing = ext.values.find(
-    (v) => v.$type === 'drools:metaData' && (v.name === name || (v.$attrs || {}).name === name)
+    (v) => v.$type === 'drools:metaData' && (v.name === name || v.$attrs?.name === name)
   );
   if (existing) {
     ext.values = ext.values.filter((v) => v !== existing);
@@ -90,7 +104,7 @@ export function setDroolsMeta(moddle, element, name, value) {
   return meta;
 }
 
-export function setAttrs(element, attrs) {
+export function setAttrs(element: FlowElement, attrs: Record<string, string>): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (key.includes(':')) {
       element.set(key, value);
@@ -100,15 +114,33 @@ export function setAttrs(element, attrs) {
   }
 }
 
-function coerce(element, key, value) {
+function coerce(element: FlowElement, key: string, value: string): string | number | boolean {
   const descriptor = element.$descriptor.propertiesByName[key];
-  const type = descriptor && descriptor.type;
-  if (type === 'Boolean') return value === 'true' || value === true;
+  const type = descriptor?.type;
+  if (type === 'Boolean') return value === 'true';
   if (type === 'Integer') return parseInt(value, 10);
   return value;
 }
 
-export function addNode(moddle, process, opts) {
+export interface AddNodeOptions {
+  type: string;
+  id?: string;
+  name?: string;
+  after?: string;
+  before?: string;
+  between?: string[];
+  container?: string;
+  eventDefinition?: string;
+  script?: string;
+  scriptFormat?: string;
+  attrs?: Record<string, string>;
+}
+
+export function addNode(
+  moddle: BpmnModdleApi,
+  process: BpmnProcess,
+  opts: AddNodeOptions
+): { node: FlowElement; flows: SequenceFlow[] } {
   const {
     type,
     id,
@@ -134,7 +166,7 @@ export function addNode(moddle, process, opts) {
     ? ensureUniqueId(process, id)
     : generateId(process, name || type);
 
-  const props = { id: nodeId };
+  const props: Record<string, unknown> = { id: nodeId };
   if (name) props.name = name;
   const node = moddle.create(bpmnType, props);
 
@@ -162,23 +194,26 @@ export function addNode(moddle, process, opts) {
 
   setAttrs(node, attrs);
 
-  let container = process;
+  let container: FlowElement = process;
   if (containerId) {
     container = findElement(process, containerId);
     if (container.$type !== 'bpmn:SubProcess') {
       throw new Error(`container <${containerId}> is not a subProcess`);
     }
   }
-  container.flowElements = container.flowElements || [];
+  container.flowElements = container.flowElements ?? [];
   container.flowElements.push(node);
   node.$parent = container;
 
-  const flows = [];
+  const flows: SequenceFlow[] = [];
   if (between) {
     const [srcId, dstId] = between;
+    if (!srcId || !dstId) {
+      throw new Error('--between expects two node ids: <src,dst>');
+    }
     const src = findElement(process, srcId);
     const dst = findElement(process, dstId);
-    const existing = (src.outgoing || []).find((f) => f.targetRef === dst);
+    const existing = (src.outgoing ?? []).find((f) => f.targetRef === dst);
     if (existing) {
       removeFlow(process, existing);
     }
@@ -192,7 +227,21 @@ export function addNode(moddle, process, opts) {
   return { node, flows };
 }
 
-export function connect(moddle, process, sourceId, targetId, opts = {}) {
+export interface ConnectOptions {
+  id?: string;
+  name?: string;
+  condition?: string;
+  language?: string;
+  default?: boolean;
+}
+
+export function connect(
+  moddle: BpmnModdleApi,
+  process: BpmnProcess,
+  sourceId: string,
+  targetId: string,
+  opts: ConnectOptions = {}
+): SequenceFlow {
   const source = findElement(process, sourceId);
   const target = findElement(process, targetId);
 
@@ -200,11 +249,11 @@ export function connect(moddle, process, sourceId, targetId, opts = {}) {
   const dstContainer = containerOf(process, target);
   if (srcContainer !== dstContainer) {
     throw new Error(
-      `cannot connect across containers: <${sourceId}> is in <${srcContainer.id}>, <${targetId}> is in <${dstContainer.id}>`
+      `cannot connect across containers: <${sourceId}> is in <${srcContainer?.id}>, <${targetId}> is in <${dstContainer?.id}>`
     );
   }
 
-  const duplicate = (source.outgoing || []).find((f) => f.targetRef === target);
+  const duplicate = (source.outgoing ?? []).find((f) => f.targetRef === target);
   if (duplicate) {
     throw new Error(
       `flow from <${sourceId}> to <${targetId}> already exists: <${duplicate.id}>`
@@ -219,13 +268,13 @@ export function connect(moddle, process, sourceId, targetId, opts = {}) {
     id: flowId,
     sourceRef: source,
     targetRef: target,
-  });
+  }) as SequenceFlow;
   if (opts.name) flow.name = opts.name;
 
   if (opts.condition) {
     const expr = moddle.create('bpmn:FormalExpression', {
       body: opts.condition,
-    });
+    }) as FormalExpression;
     if (opts.language) expr.language = opts.language;
     expr.$parent = flow;
     flow.conditionExpression = expr;
@@ -234,48 +283,55 @@ export function connect(moddle, process, sourceId, targetId, opts = {}) {
     source.set('default', flow);
   }
 
-  const container = containerOf(process, source);
+  const container = containerOf(process, source) ?? process;
+  container.flowElements = container.flowElements ?? [];
   container.flowElements.push(flow);
   flow.$parent = container;
 
-  source.outgoing = source.outgoing || [];
+  source.outgoing = source.outgoing ?? [];
   source.outgoing.push(flow);
-  target.incoming = target.incoming || [];
+  target.incoming = target.incoming ?? [];
   target.incoming.push(flow);
 
   return flow;
 }
 
-function removeFlow(process, flow) {
-  const container = containerOf(process, flow) || process;
-  container.flowElements = container.flowElements.filter((e) => e !== flow);
+function removeFlow(process: BpmnProcess, flow: SequenceFlow): void {
+  const container = containerOf(process, flow) ?? process;
+  container.flowElements = (container.flowElements ?? []).filter((e) => e !== flow);
   if (flow.sourceRef) {
-    flow.sourceRef.outgoing = (flow.sourceRef.outgoing || []).filter((f) => f !== flow);
+    flow.sourceRef.outgoing = (flow.sourceRef.outgoing ?? []).filter((f) => f !== flow);
     if (flow.sourceRef.default === flow) flow.sourceRef.default = undefined;
   }
   if (flow.targetRef) {
-    flow.targetRef.incoming = (flow.targetRef.incoming || []).filter((f) => f !== flow);
+    flow.targetRef.incoming = (flow.targetRef.incoming ?? []).filter((f) => f !== flow);
   }
 }
 
-export function removeElement(moddle, process, id, { reconnect = false } = {}) {
+export function removeElement(
+  moddle: BpmnModdleApi,
+  process: BpmnProcess,
+  id: string,
+  { reconnect = false }: { reconnect?: boolean } = {}
+): { removed: FlowElement[]; flows: SequenceFlow[] } {
   const element = findElement(process, id);
 
   if (element.$type === 'bpmn:SequenceFlow') {
-    removeFlow(process, element);
+    removeFlow(process, element as SequenceFlow);
     return { removed: [element], flows: [] };
   }
 
-  const incoming = [...(element.incoming || [])];
-  const outgoing = [...(element.outgoing || [])];
+  const incoming = [...(element.incoming ?? [])];
+  const outgoing = [...(element.outgoing ?? [])];
 
-  const newFlows = [];
+  const newFlows: Array<[string, string]> = [];
   if (reconnect) {
     for (const inFlow of incoming) {
       for (const outFlow of outgoing) {
         const src = inFlow.sourceRef;
         const dst = outFlow.targetRef;
-        const exists = (src.outgoing || []).some(
+        if (!src || !dst) continue;
+        const exists = (src.outgoing ?? []).some(
           (f) => f.targetRef === dst && f !== inFlow && f !== outFlow
         );
         if (!exists && src !== element && dst !== element) {
@@ -289,8 +345,8 @@ export function removeElement(moddle, process, id, { reconnect = false } = {}) {
     removeFlow(process, flow);
   }
 
-  const container = containerOf(process, element) || process;
-  container.flowElements = container.flowElements.filter((e) => e !== element);
+  const container = containerOf(process, element) ?? process;
+  container.flowElements = (container.flowElements ?? []).filter((e) => e !== element);
 
   const created = newFlows.map(([srcId, dstId]) =>
     connect(moddle, process, srcId, dstId, {})
