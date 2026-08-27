@@ -1,0 +1,14 @@
+package com.example.rules
+
+declare Applicant
+    age : int
+    discount : int
+end
+
+rule "Adult discount"
+    ruleflow-group "discounts"
+when
+    $a : Applicant(age >= 18)
+then
+    modify($a) { setDiscount(10) };
+end

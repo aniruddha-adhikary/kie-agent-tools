@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20230324/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             xmlns:kie="https://kie.org/dmn/extensions/1.0"
+             id="_importer"
+             name="Importer"
+             namespace="https://kie.org/dmn/_IMPORTER">
+  <import id="_imp1"
+          name="ext"
+          namespace="https://kie.org/dmn/_NOT_SCANNED"
+          importType="https://www.omg.org/spec/DMN/20230324/MODEL/"
+          locationURI="external.dmn"/>
+  <decision id="_d1" name="Decision">
+    <variable id="_v1" name="Decision"/>
+    <literalExpression id="_le1">
+      <text>1</text>
+    </literalExpression>
+  </decision>
+</definitions>

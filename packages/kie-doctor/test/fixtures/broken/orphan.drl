@@ -1,0 +1,13 @@
+package com.example.rules
+
+declare Thing
+    value : int
+end
+
+rule "Never activated"
+    ruleflow-group "unused-group"
+when
+    Thing(value > 0)
+then
+    // no-op
+end
