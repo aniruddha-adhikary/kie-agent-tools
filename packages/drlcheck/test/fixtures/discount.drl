@@ -1,0 +1,24 @@
+package rules.discount
+
+declare Applicant
+    name : String
+    age : int
+    income : int
+    approved : boolean
+    discount : int
+end
+
+rule "Adults are approved"
+    when
+        $a : Applicant( age >= 18 )
+    then
+        modify($a) { setApproved(true) }
+end
+
+rule "High income gets discount"
+    salience -10
+    when
+        $a : Applicant( approved == true, income > 5000 )
+    then
+        modify($a) { setDiscount(20) }
+end

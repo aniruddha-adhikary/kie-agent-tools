@@ -1,0 +1,8 @@
+package rules.broken
+
+rule "Missing paren"
+    when
+        $x : Object( this != null
+    then
+        System.out.println($x);
+end
