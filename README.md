@@ -1,6 +1,15 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo.svg" alt="kie-agent-tools" width="620">
+  </picture>
+</p>
+
 # kie-agent-tools
 
 Agent-oriented CLI tools for the Apache KIE / Kogito / Drools ecosystem. AI coding agents are bad at editing KIE's XML asset formats directly (broken diagram interchange, dangling references, index-based grids); these tools expose the assets through semantic, deterministic CLIs with JSON output so agents can maintain, debug, and test KIE projects reliably.
+
+> This is an independent community project. It is **not** an official Apache Software Foundation, Apache KIE, Kogito, or Drools project, and is not affiliated with or endorsed by them.
 
 ## Packages
 

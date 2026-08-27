@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.svg
+!docs/*.svg
 *.log
 
 # drlcheck runner build output
