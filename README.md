@@ -13,13 +13,74 @@ Agent-oriented CLI tools for the Apache KIE / Kogito / Drools ecosystem. AI codi
 | [`packages/drlcheck`](packages/drlcheck) | ready | Fast DRL compile-checks and rule-firing dry runs via a cached headless Drools runner (needs Java + Maven) |
 | [`packages/kie-doctor`](packages/kie-doctor) | ready | Cross-asset broken-reference lint (BPMN ↔ DMN ↔ DRL ↔ scesim) |
 
-## CLI reference
+## Installation
 
-The tools aren't published to npm yet. After `npm install && npm run build` at the repo root, run each binary directly (or `npm link` a package to get it on your PATH):
+The tools aren't published to npm yet — install from source (Node.js >= 18 required):
 
 ```sh
-node packages/<pkg>/bin/<tool>.js <command> ...
+git clone https://github.com/aniruddha-adhikary/kie-agent-tools.git
+cd kie-agent-tools
+npm install
+npm run build
 ```
+
+Run any tool directly:
+
+```sh
+node packages/<pkg>/bin/<tool>.js --help    # e.g. node packages/bpmnctl/bin/bpmnctl.js --help
+```
+
+Or put the ones you use on your PATH:
+
+```sh
+(cd packages/bpmnctl && npm link)     # repeat per package: dmnctl, scesimctl, kogito-trace, drlcheck, kie-doctor
+bpmnctl --help
+```
+
+Extra requirements per tool (everything else is pure Node):
+
+- **drlcheck** — Java 17+ and Maven; run `drlcheck setup` once to build and cache the Drools runner.
+- **kogito-trace** — a running Kogito Data Index (point at it with `--url` or `DATA_INDEX_URL`).
+- **dmnctl validate/eval `--jit`** — optional, needs a running [jitexecutor](https://github.com/apache/incubator-kie-tools/tree/main/packages/extended-services) for full validation/evaluation; everything else in dmnctl works offline.
+
+## Getting started
+
+A 2-minute tour — build a process, a decision, and a test scenario without touching XML:
+
+```sh
+# BPMN: scaffold a process, splice in a task, check it
+bpmnctl new hello.bpmn --id hello --name "Hello"
+bpmnctl add hello.bpmn --type userTask --name "Review" --between start,end
+bpmnctl validate hello.bpmn
+bpmnctl render hello.bpmn -o hello.svg        # look at what you built
+
+# DMN: model a decision with FEEL logic
+dmnctl new loan.dmn --name "Loan"
+dmnctl add loan.dmn --type input-data --name "Income" --type-ref number
+dmnctl add loan.dmn --type decision --name "Approved"
+dmnctl connect loan.dmn Income Approved
+dmnctl set-expression loan.dmn Approved --feel "Income > 5000"
+dmnctl lint-feel loan.dmn
+
+# SCESIM: a test scenario with columns derived from the DMN
+scesimctl new loan.scesim --dmn loan.dmn
+scesimctl add-row loan.scesim --values '{"Income": 9000, "Approved": "true"}'
+
+# And lint every cross-asset reference in the directory
+kie-doctor .
+```
+
+Diagram coordinates, ids, and cross-references are managed for you — `describe` any file to see its current state, and add `--json` to any read command for machine-readable output.
+
+### For AI coding agents
+
+If you're an agent (or configuring one): never edit `.bpmn`/`.dmn`/`.scesim` XML directly — raw edits break diagram interchange and dangling references. Use these CLIs instead. Ready-made skills live in [`.agents/skills/`](.agents/skills) (one per tool, in the standard SKILL.md format); copy them into your project or agent config to teach the workflows:
+
+1. `describe --json` to read any asset before editing.
+2. Mutate with semantic commands (`add`, `connect`, `set`, `set-expression`, `add-row`, …).
+3. Verify: `validate` / `lint-feel` / `drlcheck compile` after each edit, `kie-doctor` after renames/moves, `render` for a visual check.
+
+## CLI reference
 
 Every command that reads a model supports `--json` for machine-readable output, and mutating commands recompute diagram layout automatically — never edit DI/DMNDI coordinates by hand.
 
