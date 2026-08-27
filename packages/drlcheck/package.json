@@ -1,0 +1,24 @@
+{
+  "name": "@kie-agent-tools/drlcheck",
+  "version": "0.1.0",
+  "description": "CLI for fast DRL compile-checks and rule-firing dry runs (Apache KIE / Drools), backed by a cached headless Drools runner",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "drlcheck": "bin/drlcheck.js" },
+  "files": ["bin", "dist", "runner/pom.xml", "runner/src"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && esbuild src/cli.ts --bundle --platform=node --format=cjs --outfile=dist/cli.cjs --log-level=warning --define:import.meta.url=importMetaUrl \"--banner:js=const importMetaUrl = require('node:url').pathToFileURL(__filename).href;\"",
+    "pretest": "npm run build",
+    "test": "tsx --test test/cli.test.ts"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.23.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

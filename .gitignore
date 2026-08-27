@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.svg
 *.log
+
+# drlcheck runner build output
+packages/drlcheck/runner/target/
+packages/drlcheck/runner/dependency-reduced-pom.xml
