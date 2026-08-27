@@ -1,4 +1,10 @@
-export function scaffoldXml({ id, name, packageName }) {
+export interface ScaffoldOptions {
+  id: string;
+  name?: string;
+  packageName?: string;
+}
+
+export function scaffoldXml({ id, name, packageName }: ScaffoldOptions): string {
   const processId = id;
   const processName = name || id;
   const pkg = packageName || 'com.example';
